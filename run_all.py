@@ -36,12 +36,14 @@ def main():
     print("  ================================================")
     print()
 
-    # Start reservation services (one per restaurant)
+    # Start primary reservation services (one per restaurant)
     for rid, (host, port) in RESTAURANT_SERVICE_MAP.items():
         logger.info(f"Starting {rid} on port {port}...")
         svc = ReservationService(rid, host, port, DATA_PATH)
         threading.Thread(target=svc.start, daemon=True).start()
         time.sleep(0.2)
+
+    #to do -- start back up reservation services
 
     # Start gateway
     logger.info("Starting Gateway on port 5000...")
