@@ -1,0 +1,140 @@
+{
+    "restaurant_1": {
+        "name": "Urban Plates",
+        "cuisine": "American",
+        "address": "6440 Irvine Blvd, Irvine, CA, USA",
+        "menu_url": "https://urbanplates.com/menu/",
+        "price_range": "$$",
+        "rating": 4.3,
+        "description": "Farm-to-table American comfort food with seasonal ingredients, featuring salads, plates, and house-made desserts in a casual upscale setting.",
+        "features": ["outdoor seating", "happy hour", "private dining", "vegetarian options", "free parking"],
+        "tables": {
+            "T1": {"capacity": 2, "location": "window"},
+            "T2": {"capacity": 2, "location": "window"},
+            "T3": {"capacity": 2, "location": "bar"},
+            "T4": {"capacity": 4, "location": "main"},
+            "T5": {"capacity": 4, "location": "main"},
+            "T6": {"capacity": 4, "location": "patio"},
+            "T7": {"capacity": 6, "location": "patio"},
+            "T8": {"capacity": 6, "location": "patio"},
+            "T9": {"capacity": 8, "location": "private"},
+            "T10": {"capacity": 12, "location": "banquet"}
+        },
+        "timeslots": ["11:00","11:30","12:00","12:30","13:00","13:30","14:00","17:00","17:30","18:00","18:30","19:00","19:30","20:00","20:30","21:00","21:30"]
+    },
+    "restaurant_2": {
+        "name": "Sugarfish",
+        "cuisine": "Japanese",
+        "address": "212 N Canon Dr, Beverly Hills, CA, USA",
+        "menu_url": "https://sugarfishsushi.com/menu/",
+        "price_range": "$$-$$$",
+        "rating": 4.7,
+        "description": "Minimalist Japanese sushi restaurant known for high-quality nigiri, sashimi, and curated omakase-style meals.",
+        "features": ["omakase", "sushi bar", "sake menu", "gluten-free options", "reservations recommended"],
+        "tables": {
+            "T1": {"capacity": 2, "location": "sushi bar"},
+            "T2": {"capacity": 2, "location": "sushi bar"},
+            "T3": {"capacity": 2, "location": "sushi bar"},
+            "T4": {"capacity": 2, "location": "window"},
+            "T5": {"capacity": 4, "location": "booth"},
+            "T6": {"capacity": 4, "location": "booth"},
+            "T7": {"capacity": 4, "location": "booth"},
+            "T8": {"capacity": 6, "location": "private"},
+            "T9": {"capacity": 6, "location": "private"},
+            "T10": {"capacity": 8, "location": "private"}
+        },
+        "timeslots": ["11:30","12:00","12:30","13:00","13:30","17:00","17:30","18:00","18:30","19:00","19:30","20:00","20:30","21:00","21:30","22:00"]
+    },
+    "restaurant_3": {
+        "name": "La Tavolata",
+        "cuisine": "Italian",
+        "address": "11688 South St, Artesia, CA 90701",
+        "menu_url": "https://latavolata.com/menu",
+        "price_range": "$$$",
+        "rating": 4.6,
+        "description": "Rustic Italian dining with handmade pasta, wood-fired pizzas, and an extensive wine list in a warm, inviting setting.",
+        "features": ["garden patio", "wine list", "wood-fired oven", "private events", "banquet hall", "vegetarian options"],
+        "tables": {
+            "T1": {"capacity": 2, "location": "window"},
+            "T2": {"capacity": 2, "location": "window"},
+            "T3": {"capacity": 2, "location": "garden"},
+            "T4": {"capacity": 4, "location": "main"},
+            "T5": {"capacity": 4, "location": "main"},
+            "T6": {"capacity": 4, "location": "garden"},
+            "T7": {"capacity": 6, "location": "garden"},
+            "T8": {"capacity": 6, "location": "main"},
+            "T9": {"capacity": 8, "location": "private"},
+            "T10": {"capacity": 8, "location": "private"},
+            "T11": {"capacity": 10, "location": "banquet"},
+            "T12": {"capacity": 14, "location": "banquet"}
+        },
+        "timeslots": ["11:00","11:30","12:00","12:30","13:00","13:30","17:00","17:30","18:00","18:30","19:00","19:30","20:00","20:30","21:00","21:30","22:00"]
+    },
+    "restaurant_4": {
+        "name": "Seoul Kitchen",
+        "cuisine": "Korean",
+        "address": "621 S Western Ave, Los Angeles, CA, USA",
+        "menu_url": "https://seoulkitchenla.com/menu",
+        "price_range": "$$",
+        "rating": 4.4,
+        "description": "Modern Korean BBQ and street food featuring tabletop grills, fried chicken, and traditional desserts in a lively atmosphere.",
+        "features": ["tabletop grills", "late night", "group dining", "BYOB", "K-pop nights"],
+        "tables": {
+            "T1": {"capacity": 2, "location": "counter"},
+            "T2": {"capacity": 2, "location": "counter"},
+            "T3": {"capacity": 4, "location": "booth"},
+            "T4": {"capacity": 4, "location": "booth"},
+            "T5": {"capacity": 4, "location": "booth"},
+            "T6": {"capacity": 6, "location": "grill"},
+            "T7": {"capacity": 6, "location": "grill"},
+            "T8": {"capacity": 8, "location": "grill"},
+            "T9": {"capacity": 10, "location": "private"},
+            "T10": {"capacity": 12, "location": "private"}
+        },
+        "timeslots": ["11:00","11:30","12:00","12:30","13:00","13:30","14:00","17:00","17:30","18:00","18:30","19:00","19:30","20:00","20:30","21:00","21:30","22:00","22:30"]
+    },
+    "restaurant_5": {
+        "name": "Casa del Sol",
+        "cuisine": "Mexican",
+        "address": "555 Palm Dr, Los Angeles, CA, USA",
+        "menu_url": "https://casadelsolla.com/menu",
+        "price_range": "$",
+        "rating": 4.5,
+        "description": "Vibrant Mexican cantina serving tacos, enchiladas, and fresh guacamole with a lively bar and outdoor patio.",
+        "features": ["tableside guacamole", "margarita bar", "fiesta room", "outdoor seating", "live music weekends"],
+        "tables": {
+            "T1": {"capacity": 2, "location": "patio"},
+            "T2": {"capacity": 2, "location": "patio"},
+            "T3": {"capacity": 2, "location": "bar"},
+            "T4": {"capacity": 4, "location": "patio"},
+            "T5": {"capacity": 4, "location": "main"},
+            "T6": {"capacity": 4, "location": "main"},
+            "T7": {"capacity": 6, "location": "main"},
+            "T8": {"capacity": 6, "location": "patio"},
+            "T9": {"capacity": 8, "location": "private"},
+            "T10": {"capacity": 10, "location": "fiesta"}
+        },
+        "timeslots": ["11:00","11:30","12:00","12:30","13:00","13:30","14:00","14:30","17:00","17:30","18:00","18:30","19:00","19:30","20:00","20:30","21:00","21:30","22:00"]
+    },
+    "restaurant_6": {
+        "name": "Lamiak",
+        "cuisine": "Spanish",
+        "address": "Calle de la Cava Baja, 42, Madrid, Spain",
+        "menu_url": "https://lamiak.es/en/",
+        "price_range": "$",
+        "rating": 4.5,
+        "description": "Basque-style pintxos bar offering Spanish wines and small plates like duck confit, croquettes, and octopus carpaccio in a cozy, social setting.",
+        "features": ["pintxos bar", "Spanish wines", "tapas", "cozy atmosphere", "walk-ins welcome"],
+        "tables": {
+            "T1": {"capacity": 2, "location": "bar"},
+            "T2": {"capacity": 2, "location": "bar"},
+            "T3": {"capacity": 2, "location": "bar"},
+            "T4": {"capacity": 4, "location": "window"},
+            "T5": {"capacity": 4, "location": "window"},
+            "T6": {"capacity": 4, "location": "main"},
+            "T7": {"capacity": 2, "location": "main"},
+            "T8": {"capacity": 6, "location": "private"}
+        },
+        "timeslots": ["12:00","12:30","13:00","13:30","14:00","14:30","19:00","19:30","20:00","20:30","21:00","21:30","22:00","22:30","23:00"]
+    }
+}
