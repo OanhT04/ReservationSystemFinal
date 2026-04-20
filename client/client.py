@@ -262,46 +262,13 @@ def searchByCuisine():
 
 
 # ──────────────────────────────────────────────────────────────────
-#  3. View week-ahead availability
+#  ?? View week-ahead availability
 # ──────────────────────────────────────────────────────────────────
 
-def viewWeekAvailability():
-    print(f"\n  {'─'*55}")
-    print(f"  Week Availability")
-    print(f"  {'─'*55}")
-    restaurants = fetchRestaurants()
-    rid = pickRestaurant(restaurants)
-    if not rid: return
-    rest = getRestaurant(restaurants, rid)
-    name = rest["name"]
-    total_tables = len(rest["tables"])
-
-    party_size = input("\n  Party size (default 2): ").strip() or "2"
-    timeslot = input("  Timeslot to check (e.g., 19:00): ").strip()
-
-    print(f"\n  {name} — availability at {timeslot} for {party_size} guests:\n")
-    dates = getNextWeekDates()
-    days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-
-    for i, d in enumerate(dates):
-        dt = datetime.strptime(d, "%Y-%m-%d")
-        day_name = days[dt.weekday()]
-        label = "Today" if i == 0 else ("Tomorrow" if i == 1 else day_name)
-
-        resp = httpGet(f"/restaurants/{rid}/availability?date={d}&timeslot={timeslot}&party_size={party_size}")
-        if resp.get("status") == "ok":
-            avail = len(resp.get("available_tables", []))
-            bar = "#" * avail + "." * (total_tables - avail)
-            status = f"{avail}/{total_tables} tables"
-            if avail == 0:
-                status = "FULL"
-            print(f"    {d} {label:10s} [{bar}] {status}")
-        else:
-            print(f"    {d} {label:10s} Error")
 
 
 # ──────────────────────────────────────────────────────────────────
-#  4. Make a reservation (smart table matching)
+#  3. Make a reservation (smart table matching)
 # ──────────────────────────────────────────────────────────────────
 
 def makeReservation():
@@ -394,7 +361,7 @@ def makeReservation():
 
 
 # ──────────────────────────────────────────────────────────────────
-#  5. My reservations
+#  4. My reservations
 # ──────────────────────────────────────────────────────────────────
 
 def viewMyReservations():
@@ -429,7 +396,7 @@ def viewMyReservations():
 
 
 # ──────────────────────────────────────────────────────────────────
-#  6. Modify a reservation
+#  5. Modify a reservation
 # ──────────────────────────────────────────────────────────────────
 
 def modifyReservation():
@@ -521,7 +488,7 @@ def modifyReservation():
 
 
 # ──────────────────────────────────────────────────────────────────
-#  7. Cancel a reservation
+#  6. Cancel a reservation
 # ──────────────────────────────────────────────────────────────────
 
 def cancelReservation():
@@ -575,22 +542,20 @@ def main():
         print("\n  MENU:")
         print("    1. Browse restaurants")
         print("    2. Search by cuisine")
-        print("    3. View week availability")
-        print("    4. Make a reservation")
-        print("    5. My reservations")
-        print("    6. Modify a reservation")
-        print("    7. Cancel a reservation")
+        print("    3. Make a reservation")
+        print("    4. My reservations")
+        print("    5. Modify a reservation")
+        print("    6. Cancel a reservation")
         print("    0. Exit")
 
         choice = input("\n  Choice: ").strip()
 
         if choice == "1": browseRestaurants()
         elif choice == "2": searchByCuisine()
-        elif choice == "3": viewWeekAvailability()
-        elif choice == "4": makeReservation()
-        elif choice == "5": viewMyReservations()
-        elif choice == "6": modifyReservation()
-        elif choice == "7": cancelReservation()
+        elif choice == "3": makeReservation()
+        elif choice == "4": viewMyReservations()
+        elif choice == "5": modifyReservation()
+        elif choice == "6": cancelReservation()
         elif choice == "0": print("\n  Goodbye!\n"); break
         else: print("  Invalid choice.")
 
