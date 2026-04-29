@@ -209,22 +209,45 @@ class HeartbeatMonitorTests(unittest.TestCase):
 
     @patch("replication.heartbeat.HEARTBEAT_TIMEOUT", 0.08)
     def test_on_failure_fires_once_when_primary_silent(self):
+        print()
+        print()
+        time.sleep(0.5)
+        print("starting heartbeat monitor on port 6001")
+        time.sleep(0.5)
         on_failure = Mock()
         mon = HeartbeatMonitor(6001, on_failure=on_failure)
         mon.last_seen = time.time() - 10.0
         mon.run()
+        time.sleep(0.5)
+        print("waiting for on_failure to be called")
+        time.sleep(0.5)
         self.assertTrue(
             self._wait_until(lambda: on_failure.call_count >= 1),
             "on_failure should run after HEARTBEAT_TIMEOUT without record_ping",
         )
+        time.sleep(0.5)
+        print("asserting on_failure was called once")
+        time.sleep(0.5)
         on_failure.assert_called_once_with()
+        time.sleep(0.5)
+        print("asserting on_failure was not called again")
+        time.sleep(0.5)
         # Further ticks must not invoke the callback again.
         time.sleep(0.4)
         on_failure.assert_called_once_with()
+        time.sleep(0.5)
+        print("stopping heartbeat monitor")
+        time.sleep(0.5)
         mon.stop()
 
-    @patch("replication.heartbeat.HEARTBEAT_TIMEOUT", 0.12)
+
+    @patch("replication.heartbeat.HEARTBEAT_TIMEOUT", 3.0)
     def test_on_failure_not_called_while_pings_refresh(self):
+        print()
+        print()  
+        time.sleep(0.5)
+        print("starting heartbeat monitor on port 6002")
+        time.sleep(0.5)
         on_failure = Mock()
         mon = HeartbeatMonitor(6002, on_failure=on_failure)
         mon.run()
@@ -234,24 +257,61 @@ class HeartbeatMonitorTests(unittest.TestCase):
                 mon.record_ping()
                 time.sleep(0.03)
 
+        print("starting pinger thread")
+        time.sleep(0.5)
         threading.Thread(target=pinger, daemon=True).start()
-        time.sleep(0.55)
+        time.sleep(0.5)
+        print("waiting for on_failure to not be called")
+        time.sleep(0.5)
+        self.assertTrue(
+            self._wait_until(lambda: on_failure.call_count == 0),
+            "on_failure should not be called while pings refresh",
+        )
+        time.sleep(0.5)
+        print("asserting on_failure was not called")
+        time.sleep(0.5)
         on_failure.assert_not_called()
+        time.sleep(0.5)
+        print("stopping heartbeat monitor")
         mon.stop()
 
     def test_record_ping_refreshes_last_seen(self):
+        print()
+        print()
+        time.sleep(0.5)
+        print("starting heartbeat monitor on port 6003")
+        time.sleep(0.5)
         mon = HeartbeatMonitor(6003, on_failure=None)
         t0 = time.time()
-        time.sleep(0.02)
+        time.sleep(0.5)
+        print("recording ping")
+        time.sleep(0.5)
         mon.record_ping()
+        time.sleep(0.5)
+        print("asserting last_seen is greater than or equal to t0")
+        time.sleep(0.5)
         self.assertGreaterEqual(mon.last_seen, t0)
+        time.sleep(0.5)
+        print("stopping heartbeat monitor")
+        time.sleep(0.5)
+        mon.stop()
 
-    def test_stop_allows_clean_shutdown(self):
+    def test_clean_shutdown(self):
+        print()
+        print()
+        time.sleep(0.5)
+        print("starting heartbeat monitor on port 6004")
+        time.sleep(0.5)
         on_failure = Mock()
         mon = HeartbeatMonitor(6004, on_failure=on_failure)
         mon.run()
+        time.sleep(0.5)
+        print("stopping heartbeat monitor")
+        time.sleep(0.5)
         mon.stop()
-        time.sleep(0.2)
+        time.sleep(0.5)
+        print("asserting on_failure was not called")
+        time.sleep(0.5)
         on_failure.assert_not_called()
 
 class PrimaryServerFailureTests(unittest.TestCase):
