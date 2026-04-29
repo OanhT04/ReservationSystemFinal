@@ -185,12 +185,12 @@ class ReservationService:
             key = tuple(key_parts)
             if operation == "book":
                 reservation = msg.get("reservation") or {}
-                self._advance_lamport_from_peer(reservation.get("lamport_timestamp"))
+                self._advance_lamport_from_peer(reservation.get("lamport_ts"))
                 self.reservations[key] = reservation
             else:
                 res = msg.get("reservation")
                 if isinstance(res, dict):
-                    self._advance_lamport_from_peer(res.get("cancel_lamport_timestamp"))
+                    self._advance_lamport_from_peer(res.get("lamport_ts"))
                 self.reservations.pop(key, None)
             return {"status": "ok"}
         finally:
@@ -276,7 +276,7 @@ class ReservationService:
                 "party_size": party_size,
                 "contact": contact,
                 "created_at": time.time(),
-                "lamport_timestamp": lamport_ts,
+                "lamport_ts": lamport_ts,
             }
 
             if not self._replicate_book(key, reservation):
@@ -308,9 +308,8 @@ class ReservationService:
             if key not in self.reservations:
                 return {"status": "error", "message": "No reservation found to cancel"}
 
-            cancel_lamport = self._next_lamport()
             cancelled = dict(self.reservations[key])
-            cancelled["cancel_lamport_timestamp"] = cancel_lamport
+            cancelled["lamport_ts"] = self._next_lamport()
 
             if not self._replicate_cancel(key, cancelled):
                 return {"status": "error", "message": "Backup replication failed"}
