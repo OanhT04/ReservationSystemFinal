@@ -1,26 +1,33 @@
-from logging import logger
-import threading
-
 """
 backup.py - Backup node that promotes to primary on failure.
 
-Wraps a ReservationService running on the backup port.
-Starts the HeartbeatMonitor which watches for primary failure.
-When the monitor fires, promote() flips the backup into primary mode.
+Wraps a ReservationService on the backup port.
+HeartbeatMonitor records primary heartbeats (same TCP port as the backup service).
+If no ping within HEARTBEAT_TIMEOUT, promote() flips the service into primary mode.
 
+Note: RESTAURANT_SERVICE_MAP / gateway must be updated (or the process rebound to the
+primary port) for clients to reach the promoted node; that is outside this module.
 """
 
-#TODO 
+import logging
+import threading
+
+from replication.heartbeat import HeartbeatMonitor
+
+logger = logging.getLogger(__name__)
+
+
 class BackupService:
-    def __init__(self, reservation_service, primary_port, heartbeat_monitor):
-        self.svc = reservation_service       # ReservationService(is_backup=True)
-        pass
-        
-        
+    def __init__(self, reservation_service, primary_port, heartbeat_monitor=None):
+        self.svc = reservation_service
+        self.monitor = heartbeat_monitor or HeartbeatMonitor(primary_port, on_failure=self.promote)
         self.monitor.on_failure = self.promote
+        self.svc.set_heartbeat_observer(self.monitor.record_ping)
+
     def start(self):
-        threading.Thread(target=self.monitor.run, daemon=True).start()
-        self.svc.start()  # blocks
+        self.monitor.run()
+        self.svc.start()
+
     def promote(self):
-        logger.warning("PRIMARY FAILED — BACKUP PROMOTED")
-        pass
+        logger.warning("PRIMARY FAILED — BACKUP PROMOTED (primary port %s)", self.monitor.primary_port)
+        self.svc.promote_to_primary()

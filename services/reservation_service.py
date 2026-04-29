@@ -1,39 +1,33 @@
 """
 reservation_service.py - TCP server for one restaurant.
-Add locking + logical clock (TODO comments show where)
-    - per table locking with threading.Lock()
-    - book table needs to acquire lock before checking availability
-    - add lock time out
-    - Logical Clock - Lamport for event ordering with a thread.
-    Add a method that increments and returns counter
-                    and call whenever booking a table or canceling a reservation
-                    store time stamp in each reservation record
-Add replication + heartbeat (TODO)
-    - sync writes to back up; import primary replicator and replicate changes in book table, 
-    before confirming to client
-
+Per-table locks, Lamport logical clock, replication to backup, heartbeat pings.
 """
 
 import json
-import os
 import socket
 import threading
 import time
 import logging
 
 from common.protocol import sendMessage, receiveMessage
-from common.config import LOCK_TIMEOUT
+from common.config import LOCK_TIMEOUT, BACKUP_MAP, REPLICATION_HOST
+from replication.primary import PrimaryReplicator
+from replication.heartbeat import HeartbeatSender
 
 logger = logging.getLogger(__name__)
 
 
+def _key_to_list(key):
+    return [key[0], key[1], key[2]]
+
+
 class ReservationService:
 
-    def __init__(self, restaurant_id, host, port, data_path, back_up = False):
-        #back up = false bc the class will b used for both primary and back up node; 
+    def __init__(self, restaurant_id, host, port, data_path, back_up=False):
         self.restaurant_id = restaurant_id
         self.host = host
         self.port = port
+        self.back_up = back_up
         with open(data_path, "r") as f:
             all_data = json.load(f)
         self.restaurant_info = all_data[restaurant_id]
@@ -41,23 +35,48 @@ class ReservationService:
         self.reservations = {}
         self.running = False
 
-        # TODO 2: Add per-table locks
-        # self.table_locks = {}
-        # for table_id in self.restaurant_info["tables"]:
-        #     self.table_locks[table_id] = threading.Lock()
+        self.table_locks = {}
+        for table_id in self.restaurant_info["tables"]:
+            self.table_locks[table_id] = threading.Lock()
 
-        # TODO 2: Add logical clock
-        # self.logical_clock = 0
-        # self.clock_lock = threading.Lock()
+        self.logical_clock = 0
+        self.clock_lock = threading.Lock()
 
-        # TODO 3: Add replication 
-        # self.replicator = PrimaryReplicator(primary_port=port)
+        backup_port = BACKUP_MAP.get(port)
+        self.replicator = None
+        if not back_up and backup_port is not None:
+            self.replicator = PrimaryReplicator(REPLICATION_HOST, backup_port)
 
-        # TODO 3: Add heartbeat
-        # self.heartbeat_sender = HeartbeatSender(...)
+        self._heartbeat_sender = None
+        self._heartbeat_stop = threading.Event()
+        self._on_heartbeat = None
+        self._is_promoted_primary = False
+
+    def _next_lamport(self):
+        with self.clock_lock:
+            self.logical_clock += 1
+            return self.logical_clock
+
+    def _advance_lamport_from_peer(self, ts):
+        if ts is None:
+            return
+        try:
+            t = int(ts)
+        except (TypeError, ValueError):
+            return
+        with self.clock_lock:
+            self.logical_clock = max(self.logical_clock, t)
 
     def start(self):
         self.running = True
+        if not self.back_up and self.port in BACKUP_MAP:
+            self._heartbeat_sender = HeartbeatSender(
+                self.port,
+                backup_host=REPLICATION_HOST,
+                stop_event=self._heartbeat_stop,
+            )
+            threading.Thread(target=self._heartbeat_sender.run, daemon=True).start()
+
         server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         server.bind((self.host, self.port))
@@ -71,17 +90,43 @@ class ReservationService:
                 threading.Thread(target=self._handleClient, args=(conn, addr), daemon=True).start()
             except socket.timeout:
                 continue
+        self._heartbeat_stop.set()
         server.close()
 
     def stop(self):
         self.running = False
+        self._heartbeat_stop.set()
+
+    def set_heartbeat_observer(self, fn):
+        """Called on backup when a heartbeat TCP message is received from the primary."""
+        self._on_heartbeat = fn
+
+    def promote_to_primary(self):
+        """Backup takes over as authoritative node (no longer back_up-only)."""
+        if self._is_promoted_primary:
+            return
+        self._is_promoted_primary = True
+        self.back_up = False
+        self._on_heartbeat = None
+        backup_target = BACKUP_MAP.get(self.port)
+        if backup_target is not None:
+            self.replicator = PrimaryReplicator(REPLICATION_HOST, backup_target)
+        else:
+            self.replicator = None
+        logger.warning("Backup promoted to primary on %s:%s", self.host, self.port)
 
     def _handleClient(self, conn, addr):
         try:
             msg = receiveMessage(conn)
             action = msg.get("action")
 
-            if action == "get_info":
+            if action == "heartbeat":
+                if self._on_heartbeat:
+                    self._on_heartbeat()
+                response = {"status": "ok", "message": "pong"}
+            elif action == "apply_replication":
+                response = self._applyReplication(msg)
+            elif action == "get_info":
                 response = self._getRestaurantInfo()
             elif action == "check_availability":
                 response = self._checkAvailability(msg)
@@ -122,6 +167,35 @@ class ReservationService:
             "timeslots": self.restaurant_info["timeslots"],
         }
 
+    def _applyReplication(self, msg):
+        """Apply a replicated write from the primary (backup node)."""
+        operation = msg.get("operation")
+        key_parts = msg.get("key")
+        if operation not in ("book", "cancel") or not isinstance(key_parts, list) or len(key_parts) != 3:
+            return {"status": "error", "message": "Invalid replication payload"}
+        _, table_id, _ = key_parts
+        if table_id not in self.table_locks:
+            return {"status": "error", "message": "Unknown table"}
+
+        lock = self.table_locks[table_id]
+        if not lock.acquire(timeout=LOCK_TIMEOUT):
+            return {"status": "error", "message": "Lock timeout"}
+
+        try:
+            key = tuple(key_parts)
+            if operation == "book":
+                reservation = msg.get("reservation") or {}
+                self._advance_lamport_from_peer(reservation.get("lamport_timestamp"))
+                self.reservations[key] = reservation
+            else:
+                res = msg.get("reservation")
+                if isinstance(res, dict):
+                    self._advance_lamport_from_peer(res.get("cancel_lamport_timestamp"))
+                self.reservations.pop(key, None)
+            return {"status": "ok"}
+        finally:
+            lock.release()
+
     def _checkAvailability(self, msg):
         date = msg.get("date")
         timeslot = msg.get("timeslot")
@@ -147,6 +221,30 @@ class ReservationService:
             "available_tables": available,
         }
 
+    def _replicate_book(self, key, reservation):
+        if self.replicator is None or self.back_up:
+            return True
+        return self.replicator.replicate(
+            {
+                "action": "apply_replication",
+                "operation": "book",
+                "key": _key_to_list(key),
+                "reservation": reservation,
+            }
+        )
+
+    def _replicate_cancel(self, key, cancelled_snapshot):
+        if self.replicator is None or self.back_up:
+            return True
+        return self.replicator.replicate(
+            {
+                "action": "apply_replication",
+                "operation": "cancel",
+                "key": _key_to_list(key),
+                "reservation": cancelled_snapshot,
+            }
+        )
+
     def _bookTable(self, msg):
         table_id = msg.get("table_id")
         date = msg.get("date")
@@ -158,45 +256,71 @@ class ReservationService:
         if table_id not in self.restaurant_info["tables"]:
             return {"status": "error", "message": f"Table {table_id} does not exist"}
 
-        key = (self.restaurant_id, table_id, f"{date}_{timeslot}")
-        if key in self.reservations:
-            return {"status": "error", "message": f"Table {table_id} at {timeslot} is already booked"}
+        lock = self.table_locks[table_id]
+        got = lock.acquire(timeout=LOCK_TIMEOUT)
+        if not got:
+            return {"status": "error", "message": "Could not acquire table lock (timed out)"}
 
-        # TODO  2: Add lock.acquire() / lock.release()
-        # TODO  3: Add self.replicator.replicate()
+        try:
+            key = (self.restaurant_id, table_id, f"{date}_{timeslot}")
+            if key in self.reservations:
+                return {"status": "error", "message": f"Table {table_id} at {timeslot} is already booked"}
 
-        reservation = {
-            "restaurant_id": self.restaurant_id,
-            "table_id": table_id,
-            "date": date,
-            "timeslot": timeslot,
-            "customer_name": customer_name,
-            "party_size": party_size,
-            "contact": contact,
-            "created_at": time.time(),
-        }
-        self.reservations[key] = reservation
-        logger.info(f"BOOKED: {customer_name} -> {table_id} at {date} {timeslot}")
+            lamport_ts = self._next_lamport()
+            reservation = {
+                "restaurant_id": self.restaurant_id,
+                "table_id": table_id,
+                "date": date,
+                "timeslot": timeslot,
+                "customer_name": customer_name,
+                "party_size": party_size,
+                "contact": contact,
+                "created_at": time.time(),
+                "lamport_timestamp": lamport_ts,
+            }
 
-        return {"status": "ok", "message": "Reservation confirmed!", "reservation": reservation}
+            if not self._replicate_book(key, reservation):
+                return {"status": "error", "message": "Backup replication failed"}
+
+            self.reservations[key] = reservation
+            logger.info(f"BOOKED: {customer_name} -> {table_id} at {date} {timeslot}")
+
+            return {"status": "ok", "message": "Reservation confirmed!", "reservation": reservation}
+        finally:
+            lock.release()
 
     def _cancelReservation(self, msg):
         table_id = msg.get("table_id")
         date = msg.get("date")
         timeslot = msg.get("timeslot")
 
+        if table_id not in self.restaurant_info["tables"]:
+            return {"status": "error", "message": f"Table {table_id} does not exist"}
+
         key = (self.restaurant_id, table_id, f"{date}_{timeslot}")
-        if key not in self.reservations:
-            return {"status": "error", "message": "No reservation found to cancel"}
 
-        # TODO Add lock.acquire() / lock.release()
-        # TODO Replication: Add self.replicator.replicate()
+        lock = self.table_locks[table_id]
+        got = lock.acquire(timeout=LOCK_TIMEOUT)
+        if not got:
+            return {"status": "error", "message": "Could not acquire table lock (timed out)"}
 
-        cancelled = self.reservations[key]
-        del self.reservations[key]
-        logger.info(f"CANCELLED: {table_id} at {date} {timeslot}")
+        try:
+            if key not in self.reservations:
+                return {"status": "error", "message": "No reservation found to cancel"}
 
-        return {"status": "ok", "message": "Reservation cancelled", "cancelled": cancelled}
+            cancel_lamport = self._next_lamport()
+            cancelled = dict(self.reservations[key])
+            cancelled["cancel_lamport_timestamp"] = cancel_lamport
+
+            if not self._replicate_cancel(key, cancelled):
+                return {"status": "error", "message": "Backup replication failed"}
+
+            del self.reservations[key]
+            logger.info(f"CANCELLED: {table_id} at {date} {timeslot}")
+
+            return {"status": "ok", "message": "Reservation cancelled", "cancelled": cancelled}
+        finally:
+            lock.release()
 
     def _listReservations(self, msg):
         date = msg.get("date")

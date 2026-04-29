@@ -15,7 +15,8 @@ PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 os.chdir(PROJECT_ROOT)
 sys.path.insert(0, PROJECT_ROOT)
 
-from common.config import RESTAURANT_SERVICE_MAP
+from common.config import RESTAURANT_SERVICE_MAP, BACKUP_MAP
+from replication.backup import BackupService
 from services.reservation_service import ReservationService
 from gateway.gateway import startGateway
 
@@ -36,14 +37,23 @@ def main():
     print("  ================================================")
     print()
 
-    # Start primary reservation services (one per restaurant)
+    # Start backup nodes first (primaries replicate here before confirming writes)
+    for rid, (host, primary_port) in RESTAURANT_SERVICE_MAP.items():
+        backup_port = BACKUP_MAP.get(primary_port)
+        if backup_port is None:
+            continue
+        logger.info(f"Starting backup {rid} on port {backup_port}...")
+        backup_svc = ReservationService(rid, host, backup_port, DATA_PATH, back_up=True)
+        backup = BackupService(backup_svc, primary_port=primary_port)
+        threading.Thread(target=backup.start, daemon=True).start()
+        time.sleep(0.2)
+
+    # Primary reservation services (one per restaurant)
     for rid, (host, port) in RESTAURANT_SERVICE_MAP.items():
-        logger.info(f"Starting {rid} on port {port}...")
+        logger.info(f"Starting {rid} (primary) on port {port}...")
         svc = ReservationService(rid, host, port, DATA_PATH)
         threading.Thread(target=svc.start, daemon=True).start()
         time.sleep(0.2)
-
-    #to do -- start back up reservation services
 
     # Start gateway
     logger.info("Starting Gateway on port 5000...")
