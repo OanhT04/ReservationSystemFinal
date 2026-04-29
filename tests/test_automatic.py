@@ -4,8 +4,14 @@ Uses stdlib unittest only — run via `python run_tests.py`.
 """
 
 import os
+import threading
 import unittest
+from unittest.mock import Mock, patch
+
 import time
+
+from replication.backup import BackupService
+from replication.heartbeat import HeartbeatMonitor
 from services.reservation_service import ReservationService
 
 
@@ -189,6 +195,156 @@ class LamportClockTests(unittest.TestCase):
         print(f"lamport_ts: {cancel['cancelled']['lamport_ts']}")
         print()
         time.sleep(1)
+
+class HeartbeatMonitorTests(unittest.TestCase):
+    """HeartbeatMonitor: backup-side watchdog for primary liveness (see replication/heartbeat.py)."""
+
+    def _wait_until(self, predicate, timeout_sec=3.0, step=0.05):
+        deadline = time.time() + timeout_sec
+        while time.time() < deadline:
+            if predicate():
+                return True
+            time.sleep(step)
+        return False
+
+    @patch("replication.heartbeat.HEARTBEAT_TIMEOUT", 0.08)
+    def test_on_failure_fires_once_when_primary_silent(self):
+        on_failure = Mock()
+        mon = HeartbeatMonitor(6001, on_failure=on_failure)
+        mon.last_seen = time.time() - 10.0
+        mon.run()
+        self.assertTrue(
+            self._wait_until(lambda: on_failure.call_count >= 1),
+            "on_failure should run after HEARTBEAT_TIMEOUT without record_ping",
+        )
+        on_failure.assert_called_once_with()
+        # Further ticks must not invoke the callback again.
+        time.sleep(0.4)
+        on_failure.assert_called_once_with()
+        mon.stop()
+
+    @patch("replication.heartbeat.HEARTBEAT_TIMEOUT", 0.12)
+    def test_on_failure_not_called_while_pings_refresh(self):
+        on_failure = Mock()
+        mon = HeartbeatMonitor(6002, on_failure=on_failure)
+        mon.run()
+
+        def pinger():
+            for _ in range(40):
+                mon.record_ping()
+                time.sleep(0.03)
+
+        threading.Thread(target=pinger, daemon=True).start()
+        time.sleep(0.55)
+        on_failure.assert_not_called()
+        mon.stop()
+
+    def test_record_ping_refreshes_last_seen(self):
+        mon = HeartbeatMonitor(6003, on_failure=None)
+        t0 = time.time()
+        time.sleep(0.02)
+        mon.record_ping()
+        self.assertGreaterEqual(mon.last_seen, t0)
+
+    def test_stop_allows_clean_shutdown(self):
+        on_failure = Mock()
+        mon = HeartbeatMonitor(6004, on_failure=on_failure)
+        mon.run()
+        mon.stop()
+        time.sleep(0.2)
+        on_failure.assert_not_called()
+
+class PrimaryServerFailureTests(unittest.TestCase):
+    """Primary stops; backup misses heartbeats and is promoted via BackupService / HeartbeatMonitor."""
+
+    PRIMARY_PORT = 38441
+    BACKUP_PORT = 38442
+
+    def _wait_until(self, predicate, timeout_sec=5.0, step=0.05):
+        deadline = time.time() + timeout_sec
+        while time.time() < deadline:
+            if predicate():
+                return True
+            time.sleep(step)
+        return False
+
+    # Short ping interval keeps the test brisk. TIMEOUT must be large enough that the watchdog
+    # does not beat the primary's first heartbeat (backup setup + sleeps can exceed tens of ms;
+    # with TIMEOUT 0.15 the monitor often promoted before any ping arrived).
+    @patch("replication.heartbeat.HEARTBEAT_INTERVAL", 0.05)
+    @patch("replication.heartbeat.HEARTBEAT_TIMEOUT", 3.0)
+    @patch.dict("common.config.BACKUP_MAP", {38441: 38442}, clear=False)
+    def test_primary_server_failure(self):
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        data_path = os.path.join(root, "data", "restaurants.json")
+
+        backup_svc = ReservationService(
+            "restaurant_1", "127.0.0.1", self.BACKUP_PORT, data_path, back_up=True
+        )
+        backup = BackupService(backup_svc, primary_port=self.PRIMARY_PORT)
+        monitor = backup.monitor
+
+        primary_svc = ReservationService(
+            "restaurant_1", "127.0.0.1", self.PRIMARY_PORT, data_path, back_up=False
+        )
+
+        try:
+            print()
+            print()
+            # 1. Start backup (ReservationService listener + HeartbeatMonitor thread).
+            print(f"starting backup server on port {self.BACKUP_PORT}")
+            time.sleep(0.5)
+            threading.Thread(target=backup.start, daemon=True).start()
+            time.sleep(0.15)
+
+            # Snapshot before primary: pings from the upcoming primary refresh this timestamp.
+            last_seen_before_primary = monitor.last_seen
+
+            # 2. Start primary (HeartbeatSender pings backup over TCP).
+            print(f"starting primary server on port {self.PRIMARY_PORT}")
+            time.sleep(0.5)
+            threading.Thread(target=primary_svc.start, daemon=True).start()
+            time.sleep(0.35)
+
+            # 3. Confirm heartbeat flow works (poll: primary startup + first ping can lag on slow hosts).
+            print("confirming heartbeat flow works")
+            self.assertTrue(
+                self._wait_until(
+                    lambda: monitor.last_seen > last_seen_before_primary,
+                ),
+                "last_seen should refresh when primary sends heartbeats to backup",
+            )
+
+            # 4. Stop primary (no further heartbeats).
+            print(f"stopping primary server on port {self.PRIMARY_PORT}")
+            time.sleep(0.5)
+            primary_svc.stop()
+
+            # 5. Wait for timeout detection (silence past HEARTBEAT_TIMEOUT triggers promote()).
+            print("waiting for timeout detection")
+            time.sleep(0.5)
+            self.assertTrue(
+                self._wait_until(lambda: backup_svc._is_promoted_primary, timeout_sec=12.0),
+                "watchdog should detect primary silence after heartbeat timeout",
+            )
+
+            # 6. Assert promotion (service now acts as primary).
+            print("asserting promotion")
+            time.sleep(0.5)
+            self.assertTrue(backup_svc._is_promoted_primary)
+            print("promotion successful")
+            time.sleep(0.5)
+            self.assertFalse(backup_svc.back_up)
+            print("replication successful")
+            time.sleep(0.5)
+            self.assertFalse(primary_svc.back_up)
+
+
+        finally:
+            # 7. Cleanup (stops sockets and watchdog even if assertions fail).
+            primary_svc.stop()
+            backup_svc.stop()
+            monitor.stop()
 
 if __name__ == "__main__":
     unittest.main(verbosity=1)

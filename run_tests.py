@@ -13,14 +13,19 @@ import unittest
 # ----------------------------
 # CONFIG: add your test classes here
 # ----------------------------
-from tests.test_automatic import DoubleBookingTests, LamportClockTests
-
+from tests.test_automatic import (
+    DoubleBookingTests,
+    LamportClockTests,
+    HeartbeatMonitorTests,
+    PrimaryServerFailureTests,
+)
 
 
 TEST_CLASSES = {
     "1": ("Double Booking Tests", DoubleBookingTests),
     "2": ("Lamport Clock Tests", LamportClockTests),
-    # "2": ("Reservation Tests", ReservationTests),
+    "3": ("Heartbeat Monitor Tests", HeartbeatMonitorTests),
+    "4": ("Primary Server Failure Tests", PrimaryServerFailureTests),
     # "3": ("Logger Tests", LoggerTests),
     "0": ("Exit", None),
 }
