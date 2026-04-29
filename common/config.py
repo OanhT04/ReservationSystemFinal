@@ -19,18 +19,11 @@ RESTAURANT_SERVICE_MAP = {
 }
 
 
-
 #---Concurrency 
 #timeout for thread waiting to access table lock before giving up
 LOCK_TIMEOUT = 5.0
 
 #--- Replication
-#Maps each primary port to its back up port
-#used in run_all.py and gateway.py so gateway knows which port to retry if primary fails
-BACKUP_MAP = {
-    6001: 7001, 6002: 7002, 6003: 7003, 6004: 7004, 6005: 7005, 6006: 7006,
-}
-
 #IP address that backups run on
 REPLICATION_HOST = "127.0.0.1"
 
@@ -38,8 +31,15 @@ REPLICATION_HOST = "127.0.0.1"
 HEARTBEAT_INTERVAL = 2.0
 #after back up misses 3 intervals, it triggers failure
 HEARTBEAT_TIMEOUT = 6.0
-# primary is on 6001 and heart beat is one 7001
+# backup port = primary port + HEARTBEAT_PORT_OFFSET (e.g. primary 6001 -> backup 7001)
 HEARTBEAT_PORT_OFFSET = 1000
+
+#Maps each primary port to its backup port, derived from offset above
+#used in run_all.py and gateway.py so gateway knows which port to retry if primary fails
+BACKUP_MAP = {
+    port: port + HEARTBEAT_PORT_OFFSET
+    for _, port in RESTAURANT_SERVICE_MAP.values()
+}
 
 #-- protocol
 BUFFER_SIZE = 4096

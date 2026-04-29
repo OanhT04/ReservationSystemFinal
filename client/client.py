@@ -262,12 +262,6 @@ def searchByCuisine():
 
 
 # ──────────────────────────────────────────────────────────────────
-#  ?? View week-ahead availability
-# ──────────────────────────────────────────────────────────────────
-
-
-
-# ──────────────────────────────────────────────────────────────────
 #  3. Make a reservation (smart table matching)
 # ──────────────────────────────────────────────────────────────────
 
@@ -295,7 +289,11 @@ def makeReservation():
     if not party_size:
         print("  Party size is required.")
         return
-    party_size = int(party_size)
+    try:
+        party_size = int(party_size)
+    except ValueError:
+        print("  Invalid party size.")
+        return
 
     # Get available tables
     resp = httpGet(f"/restaurants/{rid}/availability?date={date}&timeslot={timeslot}&party_size={party_size}")
@@ -336,6 +334,9 @@ def makeReservation():
         print(f"\n  Assigned: [{best['table_id']}] {best['capacity']}-seat, {best['location']}")
 
     customer = input("\n  Your name: ").strip()
+    if not customer:
+        print("  Name is required.")
+        return
     contact = input("  Contact (phone/email): ").strip()
 
     resp = httpPost("/reservations", {
@@ -357,7 +358,7 @@ def makeReservation():
         print(f"  {'Contact:':<14s} {res.get('contact', 'N/A')}")
         print(f"  {'='*45}")
     else:
-        print(f"\n  Failed: {resp.get('message')}")
+        print(f"\n  Booking failed: {resp.get('message')}")
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -369,6 +370,9 @@ def viewMyReservations():
     print(f"  My Reservations")
     print(f"  {'─'*55}")
     customer = input("  Your name: ").strip().lower()
+    if not customer:
+        print("  Name is required.")
+        return
     restaurants = fetchRestaurants()
     if not restaurants: print("  Could not load restaurants."); return
     all_res = []
@@ -437,26 +441,35 @@ def modifyReservation():
     new_date = input(f"  New date [{old_date}]: ").strip() or old_date
     new_timeslot = input(f"  New timeslot [{old_timeslot}]: ").strip() or old_timeslot
     new_party = input(f"  New party size [{existing['party_size']}]: ").strip()
-    new_party = int(new_party) if new_party else existing["party_size"]
+    try:
+        new_party = int(new_party) if new_party else existing["party_size"]
+    except ValueError:
+        print("  Invalid party size.")
+        return
 
-    # Cancel old
+    # Cancel old booking first
     cancel_resp = httpDelete("/reservations", {
         "restaurant_id": rid, "table_id": old_table,
         "date": old_date, "timeslot": old_timeslot,
     })
     if cancel_resp.get("status") != "ok":
-        print(f"\n  Could not cancel: {cancel_resp.get('message')}"); return
+        print(f"\n  Could not cancel existing reservation: {cancel_resp.get('message')}")
+        return
 
     # Find best table at new time
     avail = httpGet(f"/restaurants/{rid}/availability?date={new_date}&timeslot={new_timeslot}&party_size={new_party}")
     tables = avail.get("available_tables", [])
     if not tables:
-        print(f"\n  No tables at new time. Restoring original...")
-        httpPost("/reservations", {"restaurant_id": rid, "table_id": old_table,
+        # No tables at new time — restore original
+        print(f"\n  No tables available at new time. Restoring original reservation...")
+        httpPost("/reservations", {
+            "restaurant_id": rid, "table_id": old_table,
             "date": old_date, "timeslot": old_timeslot,
             "customer_name": existing["customer_name"],
-            "party_size": existing["party_size"], "contact": existing.get("contact", "")})
-        print(f"  Original reservation restored."); return
+            "party_size": existing["party_size"], "contact": existing.get("contact", ""),
+        })
+        print(f"  Original reservation restored.")
+        return
 
     best = matchTable(tables, new_party)
     print(f"\n  Assigned: [{best['table_id']}] {best['capacity']}-seat, {best['location']}")
@@ -479,12 +492,15 @@ def modifyReservation():
         print(f"  {'Party:':<14s} {res.get('party_size')}")
         print(f"  {'='*45}")
     else:
-        print(f"\n  Failed. Restoring original...")
-        httpPost("/reservations", {"restaurant_id": rid, "table_id": old_table,
+        # New booking failed — restore original
+        print(f"\n  Modification failed. Restoring original reservation...")
+        httpPost("/reservations", {
+            "restaurant_id": rid, "table_id": old_table,
             "date": old_date, "timeslot": old_timeslot,
             "customer_name": existing["customer_name"],
-            "party_size": existing["party_size"], "contact": existing.get("contact", "")})
-        print(f"  Original restored.")
+            "party_size": existing["party_size"], "contact": existing.get("contact", ""),
+        })
+        print(f"  Original reservation restored.")
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -524,8 +540,10 @@ def cancelReservation():
         "restaurant_id": rid, "table_id": r["table_id"],
         "date": r["date"], "timeslot": r["timeslot"],
     })
-    if resp.get("status") == "ok": print(f"\n  Reservation cancelled.")
-    else: print(f"\n  Failed: {resp.get('message')}")
+    if resp.get("status") == "ok":
+        print(f"\n  Reservation cancelled.")
+    else:
+        print(f"\n  Failed: {resp.get('message')}")
 
 
 # ──────────────────────────────────────────────────────────────────

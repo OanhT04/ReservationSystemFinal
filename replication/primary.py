@@ -1,26 +1,28 @@
-#TODO
-from common.protocol import sendMessage, receiveMessage
+"""Primary → backup synchronous replication."""
+
 import logging
 import socket
 
-"""
-Helper class for reservation_service (primary) to call on every write
+from common.protocol import sendMessage, receiveMessage
 
-1. opens a TCP connection to back up, sends write, waits for {"status": "ok"} 
-2. primary reservation_services will call replicate, wait for response from back up and then confirms to client
-"""
-# #use protocol.py sendMessage/receiveMessage
+logger = logging.getLogger(__name__)
+
 
 class PrimaryReplicator:
-    def __init__(self, backup_host, backup_port, timeout=3.0): 
+    def __init__(self, backup_host, backup_port, timeout=3.0):
         self.backup_host = backup_host
         self.backup_port = backup_port
         self.timeout = timeout
-        
+
     def replicate(self, message: dict) -> bool:
-        # open TCP socket to backup
-        # sendMessage(sock, message)
-        # response = receiveMessage(sock)
-        # return response.get("status") == "ok"
-        # catch all errors, return False
-        pass
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(self.timeout)
+            sock.connect((self.backup_host, self.backup_port))
+            sendMessage(sock, message)
+            response = receiveMessage(sock)
+            sock.close()
+            return response.get("status") == "ok"
+        except (OSError, ConnectionError, ValueError, TypeError, KeyError) as e:
+            logger.warning("Replication to backup failed: %s", e)
+            return False
