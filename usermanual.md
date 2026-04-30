@@ -9,10 +9,13 @@ To install, clone or download the repository to run. To execute the reservation 
 This distributed restaurant reservation system allows users (clients) to look at restaurants by cuisine, reserve a table at a restaurant, and to manage any existing reservations they may have. This system is useful not only for restaurants that require a reservation system, but also helps customers make reservations smoothly in advance. 
 
 Request Handling
+
 Our system implements a primary-backup replication, meaning that when the client sends a HTTP request to the gateway, the gateway looks up the requested restaurant in RESTAURANT_SERVICE_MAP and opens a TCP connection to the primary and sends a message. The primary then writes and replicates to the backup, and then the response is sent back to the client via the gateway. 
 
 Events Ordering and Consistency
+
 In our system, we implemented Lamport clocks that timestamp all reservations made and per-table locks with timeouts. This ensures that the backup is updated with new writes from the primary, and that casual ordering is still intact, meaning that two users can not reserve the same table at the same time.
 
 Failures
+
 To address failures, the primary heartbeats (pings) the backup every 2 seconds to ensure to the backup that the primary still works. However, if there is no heartbeat ping from the primary after 6 seconds, then the backup promotes itself, ensuring users don't notice the failover. 
