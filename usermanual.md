@@ -2,7 +2,16 @@
 
 **How to Install and Execute**
 
-To install, clone or download the repository to run. To execute the reservation system itself, open two separate terminals. In the first terminal, start the server using the command python run_all.py. In the second terminal, start the client with the command python client.py. clients require the server to be running as the client connects to the gateway to present the main menu. To stop the system, press Ctrl+C in the server (first) terminal to terminate both terminals. To run the automated tests, use the command python run_tests.py, the server does not need to be running in order to run the tests.
+To install, clone or download the repository to run. 
+
+To execute the reservation system itself, open two separate terminals. In the first terminal, start the server using the command python ****run_all.py****. 
+
+In the second terminal, start the client with the command python client.py. clients require the server to be running as the client connects to the gateway to present the main menu. 
+
+To stop the system, press Ctrl+C in the server (first) terminal to terminate both terminals. 
+
+To run the automated tests, use the command python ****run_tests.py****, the server does not need to be running in order to run the tests.
+
 
 **System Functionality**
 
