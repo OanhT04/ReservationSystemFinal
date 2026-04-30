@@ -12,6 +12,8 @@ logger = logging.getLogger(__name__)
 
 
 class HeartbeatSender:
+    """Sends heartbeat pings from primary to backup at regular intervals."""
+    
     def __init__(self, primary_port, backup_host=None, stop_event=None):
         self.primary_port = primary_port
         self.backup_port = BACKUP_MAP.get(primary_port)
@@ -20,12 +22,15 @@ class HeartbeatSender:
         self._stop = stop_event if stop_event is not None else threading.Event()
 
     def run(self):
+        """Start the heartbeat sender loop in a background thread."""
         while not self._stop.is_set():
             if self.backup_port is None:
                 break
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.settimeout(5.0)
+            
             try:
+                # Connect to the backup and send a heartbeat message containing the primary port.
                 sock.connect((self.backup_host, self.backup_port))
                 sendMessage(
                     sock,
@@ -62,6 +67,7 @@ class HeartbeatMonitor:
         self.last_seen = time.time()
 
     def run(self):
+        # Start the watchdog loop in a background thread.
         threading.Thread(target=self._watchdog_loop, daemon=True).start()
 
     def _watchdog_loop(self):

@@ -127,13 +127,9 @@ class ReservationService:
 
         Flips back_up=False so that subsequent writes replicate forward and
         are confirmed to the client normally.  BACKUP_MAP only contains primary
-        ports as keys, so BACKUP_MAP.get(self.port) returns None for a backup
-        port 
-        
-        — the promoted node therefore runs without its own backup.  This
-        is intentional for our single-backup-per-restaurant design, but we log
-        a warning 
+        ports as keys, so BACKUP_MAP.get(self.port) returns None for a backup port 
         """
+        
         if self._is_promoted_primary:
             return
         self._is_promoted_primary = True
@@ -144,8 +140,7 @@ class ReservationService:
         if backup_target is not None:
             self.replicator = PrimaryReplicator(REPLICATION_HOST, backup_target)
         else:
-            # Backup ports are not keys in BACKUP_MAP, so promoted nodes have
-            self.replicator = None
+            # Backup ports are not keys in BACKUP_MAP, so promoted nodes have no backup to replicate to.
             logger.warning(
                 "Promoted primary on %s:%s has no backup — BACKUP_MAP contains no "
                 "entry for port %s.  Data is now unreplicated.",
@@ -156,6 +151,8 @@ class ReservationService:
     # ── Request dispatcher ────────────────────────────────────────
 
     def _handleClient(self, conn, addr):
+        # Dispatcher for incoming TCP messages.  
+        # Each message is handled in a new thread, so multiple requests can be processed concurrently.
         try:
             msg = receiveMessage(conn)
             action = msg.get("action")
@@ -163,7 +160,7 @@ class ReservationService:
             if action == "heartbeat":
                 if self._on_heartbeat:
                     self._on_heartbeat()
-                response = {"status": "ok", "message": "pong"}
+                response = {"status": "ok", "message": "pong"} 
             elif action == "apply_replication":
                 response = self._applyReplication(msg)
             elif action == "get_info":

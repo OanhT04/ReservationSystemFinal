@@ -40,12 +40,18 @@ def receiveMessage(sock: socket.socket) -> dict:
 
 
 def createRequest(action: str, **kwargs) -> dict:
+    """
+    Create a request message with the specified action and additional keyword arguments.
+    """
     msg = {"action": action}
     msg.update(kwargs)
     return msg
 
 
 def createResponse(status: str, **kwargs) -> dict:
+    """
+    Create a response message with the specified status and additional keyword arguments.
+    """
     msg = {"status": status}
     msg.update(kwargs)
     return msg

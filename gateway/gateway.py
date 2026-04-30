@@ -77,6 +77,7 @@ class GatewayHandler(BaseHTTPRequestHandler):
         logger.info(f"HTTP {args[0]}")
 
     def _sendJson(self, status_code, data):
+        # Send a JSON response with the specified status code.
         self.send_response(status_code)
         self.send_header("Content-Type", "application/json")
         self.send_header("Access-Control-Allow-Origin", "*")
@@ -84,6 +85,7 @@ class GatewayHandler(BaseHTTPRequestHandler):
         self.wfile.write(json.dumps(data, indent=2).encode())
 
     def _readBody(self):
+        # Read and parse JSON body from the request. Returns dict or None if invalid.
         content_length = int(self.headers.get("Content-Length", 0))
         if content_length == 0:
             return {}
@@ -195,11 +197,12 @@ class GatewayHandler(BaseHTTPRequestHandler):
     def do_DELETE(self):
         path = urlparse(self.path).path
         body = self._readBody()
-
+        
         if body is None:
             self._sendJson(400, {"error": "Invalid JSON body"})
             return
 
+        # DELETE /reservations
         if path == "/reservations":
             rid = body.get("restaurant_id")
             if not rid:
